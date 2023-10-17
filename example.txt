@@ -1,0 +1,76 @@
+const SerialPort = require('serialport')
+const axios = require('axios');
+
+const baseUrl = "http://26.15.204.114:3001/v1"
+
+const pass = async (body) => {
+    await axios.post(`${baseUrl}/pass-weapon`, body).catch(function (error) { console.log(error.message); return null })
+}
+// const Readline = SerialPort.parsers.Readline;
+SerialPort.parsers = {
+    ByteLength: require('@serialport/parser-byte-length'),
+    CCTalk: require('@serialport/parser-cctalk'),
+    Delimiter: require('@serialport/parser-delimiter'),
+    Readline: require('@serialport/parser-readline'),
+    Ready: require('@serialport/parser-ready'),
+    Regex: require('@serialport/parser-regex'),
+}
+
+try {
+    const port = new SerialPort('COM3', {
+        baudRate: 57600,
+        // dataBits: 8,
+        // parity: 'none',
+        // stopBits: 1,
+        // parser: new Readline({delimiter: '\r\n'})
+//        parser: new SerialPort.parsers.Readline({ includeDelimiter: true, delimiter: '\r\n' })
+    })
+
+
+    port.write('main screen turn on', function (err) {
+        if (err) {
+            return console.log('Error on write: ', err.message)
+        }
+        console.log('message written')
+    })
+
+    port.on('error', function (err) {
+        console.log('Error: ', err.message)
+    })
+
+    let fullBufferPendek = ''
+    let fullBuffer = ''
+    const dataLength = 36
+    port.on('readable', async function (item) {
+        const data = port.read()
+        const str = data.toString('hex')
+        // console.log(fullBuffer.length + str.length, dataLength)
+        switch (true) {
+            case (fullBuffer.length + str.length == dataLength):
+                fullBuffer = fullBuffer.concat(str);
+                console.log("Data: ", fullBuffer)
+                await pass({ serial: fullBuffer })
+                fullBuffer = ''
+                break;
+
+            case (fullBufferPendek.length + str.length == 20):
+                fullBufferPendek = fullBufferPendek.concat(str);
+                console.log("pendek: ", fullBufferPendek)
+                await pass({ serial: fullBuffer })
+                fullBufferPendek = ''
+                break;
+
+
+            default:
+                fullBuffer = fullBuffer.concat(str);
+                fullBufferPendek = fullBufferPendek.concat(str);
+                setTimeout(() => {
+                    fullBuffer = ''
+                    fullBufferPendek = ''
+                }, 100);
+                break;
+        }
+    })
+} catch (e) {
+    console.log(e)
+}
